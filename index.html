@@ -1,199 +1,378 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Eclipse Executor</title>
-
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
-    /* Star animation */
-    .star {
-      position: absolute;
-      background: white;
-      border-radius: 50%;
-      opacity: 0.8;
-      animation: twinkle 3s infinite alternate;
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, Liberation Sans, sans-serif;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+    }
+    html { scrollbar-width: thin; scrollbar-color: #888 #111; }
+    ::-webkit-scrollbar { width: 12px; }
+    ::-webkit-scrollbar-track { background: #0f0f0f; border-left: 1px solid #222; }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #909090, #5a5a5a);
+      border-radius: 10px; border: 2px solid #0f0f0f;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.6);
+    }
+    ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #9a9a9a, #666); }
+
+    .bg-layers { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .grid {
+      position: absolute; inset: -20%;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.14) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.14) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridMove 7s linear infinite;
+      filter: contrast(110%) brightness(95%);
+    }
+    @keyframes gridMove { 0%{transform:translate(0,0);}100%{transform:translate(-160px,-160px);} }
+
+    .sweep {
+      position: absolute; inset: 0;
+      background-image: linear-gradient(135deg,
+        rgba(255,255,255,0.40) 0%,
+        rgba(255,255,255,0.18) 40%,
+        rgba(0,0,0,0.00) 75%);
+      background-size: 300% 300%;
+      mix-blend-mode: screen;
+      opacity: 0;
+      animation: sweepLoop 6s linear infinite;
+    }
+    @keyframes sweepLoop {
+      0%   { opacity: 0;   background-position: 0% 0%; }
+      15%  { opacity: 0.6; background-position: 10% 10%; }
+      85%  { opacity: 0.6; background-position: 100% 100%; }
+      100% { opacity: 0;   background-position: 100% 100%; }
     }
 
-    @keyframes twinkle {
-      from { opacity: 0.2; transform: scale(0.8); }
-      to { opacity: 1; transform: scale(1.2); }
-    }
+    #stars { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+    .star { position:absolute; background:#fff; border-radius:50%; opacity:0.9; animation: twinkle 1.2s infinite alternate; }
+    @keyframes twinkle { from{opacity:0.4;transform:scale(0.7);} to{opacity:1;transform:scale(1.25);} }
 
-    /* Moving stars */
-    @keyframes drift {
-      from { transform: translateY(0); }
-      to { transform: translateY(-100vh); }
-    }
+    .active-tab { border-bottom:2px solid #fff; color:#fff!important; }
+    .nav-link { color:#bbb; } .nav-link:hover { color:#fff; }
 
-    .moving-star {
-      position: absolute;
-      background: white;
-      border-radius: 50%;
-      opacity: 0.7;
-      animation: drift linear infinite;
-    }
+    .card { background:#000; border:1px solid #2f2f2f; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.65); }
+    .card-inner { padding:2rem; display:grid; gap:1rem; align-content:start; }
 
-    /* Tilt effect */
-    .tilt {
-      transition: transform 0.15s ease-out;
-      transform-style: preserve-3d;
-    }
+    .tab-content { display:none; opacity:0; transform:translateY(20px); transition:opacity 400ms ease, transform 400ms ease; }
+    .tab-content.active { display:block; opacity:1; transform:translateY(0); animation: fadeSlideIn 0.5s ease; }
+    @keyframes fadeSlideIn { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:translateY(0);} }
 
-    /* Glow effect for active tab */
-    .active-tab {
-      border: 2px solid #a78bfa; /* indigo-400 */
-      box-shadow: 0 0 12px #a78bfa;
-      border-radius: 0.5rem;
-      padding: 0.25rem 0.75rem;
-    }
+    .ui-image { width:100%; max-width:800px; margin:0 auto; border-radius:16px; box-shadow:0 10px 24px rgba(0,0,0,0.6); transition:opacity 300ms ease; }
+    .ui-label { text-align:center; font-weight:700; margin-top:0.5rem; }
+    .ui-dots { display:flex; justify-content:center; gap:0.5rem; margin-top:0.75rem; }
+    .ui-dot { width:12px;height:12px;border-radius:9999px;background:#444;border:1px solid #666;cursor:pointer; }
+    .ui-dot.active { background:#fff;border-color:#fff; }
+
+    .ripple { position:relative; overflow:hidden; }
+    .ripple::after { content:""; position:absolute; left:var(--rx,50%); top:var(--ry,50%); width:10px;height:10px;
+      background:radial-gradient(circle,rgba(255,255,255,0.5)0%,rgba(255,255,255,0)60%);
+      transform:translate(-50%,-50%)scale(0); opacity:0; animation:rippleAnim 420ms ease-out; }
+    @keyframes rippleAnim { 0%{transform:translate(-50%,-50%)scale(0);opacity:0.9;}100%{transform:translate(-50%,-50%)scale(18);opacity:0;} }
+
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; z-index:50; animation: fadeIn 0.3s ease; }
+    .modal { background:#111; border:1px solid #444; border-radius:14px; padding:1.25rem 1.5rem; width:100%; max-width:460px; box-shadow:0 15px 40px rgba(0,0,0,0.65); animation: scaleIn 0.3s ease; }
+    .modal-actions { display:flex; flex-direction:column; gap:0.75rem; }
+    @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+    @keyframes scaleIn { from{transform:scale(0.9);opacity:0;} to{transform:scale(1);opacity:1;} }
+
+    .tab-gif { width:160px; margin:0.75rem auto 0 auto; opacity:0.9; }
   </style>
 </head>
-
-<body class="min-h-screen text-white font-sans relative overflow-x-hidden overflow-y-auto"
-      style="background: linear-gradient(135deg, #000000, #0a0a0a);">
-
-  <!-- STAR FIELD -->
+<body>
+  <div class="bg-layers"><div class="grid"></div><div class="sweep"></div></div>
   <div id="stars"></div>
 
-  <!-- NAVBAR -->
-  <nav class="absolute top-6 right-6 flex gap-6 z-20">
-    <a href="index.html" 
-       class="px-3 py-1 rounded-md text-slate-300 hover:text-indigo-400 font-semibold transition active-tab">
-       Home
-    </a>
-    <a href="Monaco.html" 
-       class="px-3 py-1 rounded-md text-slate-300 hover:text-pink-400 font-semibold transition">
-       Monaco
-    </a>
-  </nav>
-
-  <div class="max-w-2xl w-full mx-auto p-6 relative z-10 space-y-12">
-
-    <!-- HEADER SECTION -->
-    <div class="bg-black/70 backdrop-blur-xl rounded-3xl shadow-2xl p-8 text-center space-y-6 border border-slate-800">
-      <h1 class="text-4xl font-extrabold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-pulse">
-        Eclipse Executor
-      </h1>
-      <p class="text-slate-400 italic">Made by: <span class="text-indigo-400">@7kcy</span></p>
-      <img
-        id="logo"
-        src="SilverE2.png"
-        alt="Eclipse Executor Logo"
-        class="w-44 h-44 mx-auto rounded-2xl object-cover shadow-lg tilt"
-      />
-    </div>
-
-    <!-- ECLIPSE UI SECTION -->
-    <div class="bg-black/70 backdrop-blur-xl rounded-3xl shadow-2xl p-8 text-center space-y-8 border border-slate-800">
-      <h2 class="text-2xl font-bold text-indigo-300">EclipseUI:</h2>
-
-      <img
-        id="eclipse"
-        src="Eclipse.png"
-        alt="Eclipse PNG"
-        class="w-96 mx-auto rounded-xl shadow-lg tilt"
-      />
-
-      <img
-        src="EclipseGif.gif"
-        alt="Eclipse GIF"
-        class="w-72 mx-auto rounded-xl shadow-md"
-      />
-    </div>
-
-    <!-- SOCIALS/DOWNLOAD SECTION -->
-    <div class="bg-black/70 backdrop-blur-xl rounded-3xl shadow-2xl p-8 text-center space-y-6 border border-slate-800">
-      <h2 class="text-2xl font-bold text-indigo-300">Socials / Download:</h2>
-
-      <div class="flex flex-col gap-4">
-        <a
-          href="https://discord.gg/nscrdqueaP"
-          target="_blank"
-          class="block w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 transition transform hover:scale-105 shadow-md"
-        >
-          🚀 Join Discord
-        </a>
-
-        <a
-          href="https://www.youtube.com/@Eclipse.Executor"
-          target="_blank"
-          class="block w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 transition transform hover:scale-105 shadow-md"
-        >
-          ▶️ YouTube Channel
-        </a>
-
-        <!-- UPDATED DOWNLOAD BUTTON -->
-        <a
-          href="https://gofile.io/d/52R60f"
-          target="_blank"
-          class="block w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-800 hover:from-emerald-500 hover:to-emerald-700 transition transform hover:scale-105 shadow-lg font-semibold"
-        >
-          ⬇️ Download Eclipse
-        </a>
+  <!-- Navbar -->
+  <nav class="fixed top-0 left-0 w-full bg-black/85 border-b border-gray-700 z-40">
+    <div class="max-w-6xl mx-auto flex justify-between items-center px-6 py-4">
+      <div class="flex items-center gap-2">
+        <img src="SilverE2.png" alt="Eclipse Logo" class="w-10 h-10 rounded"/>
+        <span class="font-bold">Eclipse Executor</span>
+      </div>
+      <div class="flex items-center gap-6 font-semibold">
+        <button class="tab-btn active-tab ripple nav-link" data-tab="download">Download</button>
+        <button class="tab-btn ripple nav-link" data-tab="version">Version</button>
+        <button class="tab-btn ripple nav-link" data-tab="ui">UI</button>
+        <button class="tab-btn ripple nav-link" data-tab="changelogs">Changelogs</button>
+        <button class="tab-btn ripple nav-link" data-tab="socials">Socials</button>
+        <button class="tab-btn ripple nav-link" data-tab="monaco">Monaco</button>
       </div>
     </div>
+  </nav>
 
-    <!-- FOOTER -->
-    <p class="text-xs text-slate-500 text-center">
-      © 2025 Eclipse Executor
-    </p>
+  <!-- Content wrapper -->
+  <main class="max-w-5xl mx-auto px-6 pt-28 pb-16 space-y-12 relative z-30">
+    <!-- Download -->
+    <section id="download" class="tab-content active">
+      <div class="card">
+        <div class="card-inner text-center">
+          <img src="SilverE2.png" alt="Logo" class="w-20 h-20 mx-auto"/>
+          <h2 class="text-2xl font-bold">Download Eclipse</h2>
+          <p class="text-gray-300">
+            Click download to choose to download Eclipse’s Monaco or Eclipse Executor.
+          </p>
+          <button type="button"
+                  class="download-choice ripple w-full py-3 rounded bg-gray-800 hover:bg-gray-700 font-medium mt-2">
+            Download
+          </button>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- Version -->
+    <section id="version" class="tab-content">
+      <div class="card">
+        <div class="card-inner text-center">
+          <img src="SilverE2.png" alt="Logo" class="w-20 h-20 mx-auto"/>
+          <h2 class="text-2xl font-bold mb-2">Current Version</h2>
+          <p class="text-gray-300 text-lg">
+            Eclipse Executor <span class="font-semibold">v1.0.2</span>
+          </p>
+          <p class="text-sm text-gray-400 italic">Last update: 12/16</p>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+    <!-- UI -->
+    <section id="ui" class="tab-content">
+      <div class="card">
+        <div class="card-inner text-center">
+          <h2 class="text-2xl font-bold">Eclipse UI</h2>
+          <img id="uiImage" src="EclipseHome.png" alt="Eclipse UI" class="ui-image"/>
+          <div id="uiLabel" class="ui-label">Home</div>
+          <div class="ui-dots">
+            <div class="ui-dot active" data-index="0" aria-label="Home"></div>
+            <div class="ui-dot" data-index="1" aria-label="ScriptHub"></div>
+            <div class="ui-dot" data-index="2" aria-label="Executor"></div>
+            <div class="ui-dot" data-index="3" aria-label="Settings"></div>
+          </div>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- Changelogs -->
+    <section id="changelogs" class="tab-content">
+      <div class="card">
+        <div class="card-inner text-center">
+          <h2 class="text-2xl font-bold mb-4">Changelogs</h2>
+          <div class="space-y-2 text-gray-300 text-lg">
+            <p>Added script hub</p>
+            <p>Better Monaco</p>
+            <p>Added settings</p>
+            <p>New UI</p>
+            <p>Better animations</p>
+            <p>More coming soon!</p>
+          </div>
+          <p class="text-sm text-gray-400 italic mt-4">Last update: 12/16</p>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- Socials -->
+    <section id="socials" class="tab-content">
+      <div class="card">
+        <div class="card-inner text-center">
+          <h2 class="text-2xl font-bold">Social Links</h2>
+          <a href="https://discord.gg/nscrdqueaP"
+             class="external-link ripple block w-full py-3 rounded bg-gray-800 hover:bg-gray-700 font-medium"
+             data-label="Caution: this will take you to an off‑platform link. Continue?">
+            Join Discord
+          </a>
+          <a href="https://www.youtube.com/@Eclipse.Executor"
+             class="external-link ripple block w-full py-3 rounded bg-gray-800 hover:bg-gray-700 font-medium"
+             data-label="Caution: this will take you to an off‑platform link. Continue?">
+            YouTube Channel
+          </a>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+    <!-- Monaco -->
+    <section id="monaco" class="tab-content">
+      <div class="card">
+        <div class="card-inner text-center">
+          <h2 class="text-2xl font-bold">Monaco</h2>
+          <img src="EclipseExecutor.png" alt="Eclipse Executor Preview" class="ui-image"/>
+          <p class="text-gray-300">Open the Monaco editor in a new tab.</p>
+          <a href="Monaco.html"
+             target="_blank" rel="noopener noreferrer"
+             class="external-link ripple block w-full py-3 rounded bg-gray-800 hover:bg-gray-700 font-medium mt-2"
+             data-label="Caution: this will open Monaco in a new tab. Continue?">
+            Open Monaco
+          </a>
+          <img src="EclipseGif.gif" alt="Eclipse Gif" class="tab-gif"/>
+        </div>
+      </div>
+    </section>
+
+    <p class="text-xs text-gray-500 text-center">© 2025 Eclipse Executor</p>
+  </main>
+
+  <!-- Confirm modal -->
+  <div id="confirmModal" class="modal-backdrop">
+    <div class="modal">
+      <h3 class="text-lg font-bold mb-2">Heads up</h3>
+      <p id="confirmText" class="text-gray-300 mb-4"></p>
+      <div class="flex justify-end gap-3">
+        <button id="cancelBtn" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded">Cancel</button>
+        <button id="continueBtn" class="px-3 py-1 bg-white text-black hover:bg-gray-200 rounded">Continue</button>
+      </div>
+    </div>
   </div>
 
-  <!-- STAR GENERATION SCRIPT -->
+  <!-- Download choice modal -->
+  <div id="downloadModal" class="modal-backdrop">
+    <div class="modal">
+      <h3 class="text-lg font-bold mb-3">Choose what to download</h3>
+      <p class="text-gray-300 mb-4">Select Monaco or Executor. You’ll be asked to approve leaving the site.</p>
+      <div class="modal-actions">
+        <button id="chooseMonaco" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded font-medium">
+          Monaco
+        </button>
+        <button id="chooseExecutor" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded font-medium">
+          Executor
+        </button>
+        <button id="closeDownloadModal" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    const starContainer = document.getElementById("stars");
-    const numStars = 120;
-    const numMovingStars = 60;
+    document.addEventListener("DOMContentLoaded", () => {
+      /* Stars */
+      const starContainer = document.getElementById("stars");
+      const STAR_COUNT = 160;
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const s = document.createElement("div");
+        s.className = "star";
+        const size = Math.random() * 2.2 + 0.8;
+        s.style.width = size + "px";
+        s.style.height = size + "px";
+        s.style.top = Math.random() * 100 + "%";
+        s.style.left = Math.random() * 100 + "%";
+        s.style.animationDelay = (Math.random() * 1.2) + "s";
+        starContainer.appendChild(s);
+      }
 
-    for (let i = 0; i < numStars; i++) {
-      const star = document.createElement("div");
-      star.classList.add("star");
-      const size = Math.random() * 3 + 1;
-      star.style.width = `${size}px`;
-      star.style.height = `${size}px`;
-      star.style.top = `${Math.random() * 100}%`;
-      star.style.left = `${Math.random() * 100}%`;
-      star.style.animationDelay = `${Math.random() * 5}s`;
-      starContainer.appendChild(star);
-    }
-
-    for (let i = 0; i < numMovingStars; i++) {
-      const star = document.createElement("div");
-      star.classList.add("moving-star");
-      const size = Math.random() * 2 + 1;
-      star.style.width = `${size}px`;
-      star.style.height = `${size}px`;
-      star.style.top = `${Math.random() * 100}%`;
-      star.style.left = `${Math.random() * 100}%`;
-      const duration = Math.random() * 20 + 10;
-      star.style.animationDuration = `${duration}s`;
-      starContainer.appendChild(star);
-    }
-
-    function addTiltEffect(element, intensity = 80, scale = 1.3) {
-      element.addEventListener("mousemove", (e) => {
-        const rect = element.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        const rotateX = ((y - centerY) / centerY) * intensity;
-        const rotateY = ((x - centerX) / centerX) * intensity;
-        element.style.transform = `rotateX(${ -rotateX }deg) rotateY(${ rotateY }deg) scale(${scale})`;
+      /* Tabs */
+      const tabs = document.querySelectorAll(".tab-btn");
+      const sections = document.querySelectorAll(".tab-content");
+      function setActiveTab(name) {
+        tabs.forEach(btn => btn.classList.toggle("active-tab", btn.dataset.tab === name));
+        sections.forEach(sec => {
+          if (sec.id === name) sec.classList.add("active");
+          else sec.classList.remove("active");
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      tabs.forEach(tab => {
+        tab.addEventListener("click", (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - r.left;
+          const y = e.clientY - r.top;
+          e.currentTarget.style.setProperty("--rx", x + "px");
+          e.currentTarget.style.setProperty("--ry", y + "px");
+          setActiveTab(tab.dataset.tab);
+        });
       });
-      element.addEventListener("mouseleave", () => {
-        element.style.transform = "rotateX(0) rotateY(0) scale(1)";
-      });
-    }
 
-    const logo = document.getElementById("logo");
-    const eclipse = document.getElementById("eclipse");
-    addTiltEffect(logo, 80, 1.3);       // way more intense tilt
-    addTiltEffect(eclipse, 120, 1.4);   // super intense tilt
+      /* Confirm modal */
+      const confirmModal = document.getElementById("confirmModal");
+      const confirmText = document.getElementById("confirmText");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const continueBtn = document.getElementById("continueBtn");
+      let pendingUrl = null;
+      function openConfirm(message, url) {
+        confirmText.textContent = message || "Caution: this will take you to an off‑platform link. Continue?";
+        pendingUrl = url;
+        confirmModal.style.display = "flex";
+      }
+      function closeConfirm() { confirmModal.style.display = "none"; pendingUrl = null; }
+      cancelBtn.addEventListener("click", closeConfirm);
+      continueBtn.addEventListener("click", () => {
+        if (pendingUrl) window.open(pendingUrl, "_blank", "noopener,noreferrer");
+        closeConfirm();
+      });
+      confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) closeConfirm(); });
+      document.querySelectorAll(".external-link").forEach(link => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          openConfirm(link.getAttribute("data-label"), link.href);
+        });
+      });
+
+      /* Download choice modal */
+      const downloadModal = document.getElementById("downloadModal");
+      const chooseMonacoBtn = document.getElementById("chooseMonaco");
+      const chooseExecutorBtn = document.getElementById("chooseExecutor");
+      const closeDownloadModalBtn = document.getElementById("closeDownloadModal");
+      const downloadChoiceBtn = document.querySelector(".download-choice");
+      function openDownloadModal() { downloadModal.style.display = "flex"; }
+      function closeDownloadModal() { downloadModal.style.display = "none"; }
+      if (downloadChoiceBtn) {
+        downloadChoiceBtn.addEventListener("click", (e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const x = e.clientX - r.left;
+          const y = e.clientY - r.top;
+          e.currentTarget.style.setProperty("--rx", x + "px");
+          e.currentTarget.style.setProperty("--ry", y + "px");
+          openDownloadModal();
+        });
+      }
+      chooseMonacoBtn.addEventListener("click", () => {
+        closeDownloadModal();
+        openConfirm("Caution: this will take you to an off‑platform link to download Monaco. Continue?",
+                    "https://gofile.io/d/zt0APW");
+      });
+      chooseExecutorBtn.addEventListener("click", () => {
+        closeDownloadModal();
+        openConfirm("Caution: this will take you to an off‑platform link to download Eclipse Executor. Continue?",
+                    "https://gofile.io/d/52R60f");
+      });
+      closeDownloadModalBtn.addEventListener("click", closeDownloadModal);
+      downloadModal.addEventListener("click", (e) => { if (e.target === downloadModal) closeDownloadModal(); });
+
+      /* UI viewer */
+      const uiImages = [
+        { src: "EclipseHome.png", label: "Home" },
+        { src: "EclipseScriptHub.png", label: "ScriptHub" },
+        { src: "EclipseExecutor.png", label: "Executor" },
+        { src: "EclipseSettings.png", label: "Settings" }
+      ];
+      const uiImgEl = document.getElementById("uiImage");
+      const uiLabelEl = document.getElementById("uiLabel");
+      const uiDots = document.querySelectorAll(".ui-dot");
+      let idx = 0;
+      function showImage(newIdx) {
+        idx = (newIdx + uiImages.length) % uiImages.length;
+        uiImgEl.style.opacity = "0";
+        setTimeout(() => {
+          uiImgEl.src = uiImages[idx].src;
+          uiImgEl.style.opacity = "1";
+          uiLabelEl.textContent = uiImages[idx].label;
+          uiDots.forEach((d, i) => d.classList.toggle("active", i === idx));
+        }, 200);
+      }
+      uiDots.forEach(dot => {
+        dot.addEventListener("click", () => showImage(parseInt(dot.getAttribute("data-index"), 10)));
+      });
+    });
   </script>
 </body>
 </html>
